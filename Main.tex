@@ -1,0 +1,54 @@
+\documentclass[11pt,a4paper]{report}
+
+\usepackage[LGR, T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english, greek]{babel}
+\usepackage{alphabeta}
+\usepackage{biblatex} %Imports biblatex package
+\addbibresource{bibliography.bib} %Import the bibliography file
+\usepackage{graphicx}
+\graphicspath{ {./figs/} }
+\usepackage{xcolor}
+\usepackage{csquotes}
+\usepackage{tikz}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+
+
+\let\subsectionautorefname\sectionautorefname{}
+\let\subsubsectionautorefname\sectionautorefname{}
+
+\begin{document}
+
+
+\include{Cover}
+\include{Dedication}
+\include{Declaration}
+\include{Acknowledgments}
+\include{Abstract}
+
+\setcounter{tocdepth}{2} 
+
+\textlatin{\tableofcontents}
+\listoffigures
+\listoftables
+
+\pagebreak
+
+
+\include{Introduction}
+\include{Chapter2}
+\include{Chapter3}
+\include{Chapter4}
+\include{Chapter5}
+\include{Chapter6}
+\include{Chapter7}
+\include{Conclusions}
+
+
+\textlatin{\printbibliography}
+
+\end{document}
+
+
