@@ -306,7 +306,113 @@
 \subsubsection{Έλεγχος δυνατοτήτων}
 
 
+Μόλις έχουμε μια σαφή εικόνα με τι είδους σύστημα εργαζόμαστε, θα μπορέσουμε να
+κάνουμε πιο λεπτομερή αναγνώριση. Ένα από τα πιο σημαντικά πράγματα για να δούμε
+είναι οι δυνατότητες του πυρήνα του κοντέινερ. Εμείς μπορούμε να το ελέγξουμε
+αυτό κοιτάζοντας το \texttt{\textlatin{/proc/self/status}} \footnote{Το
+\texttt{\textlatin{self}} στο \texttt{\textlatin{/proc/self}} αναφέρεται στη
+τρέχουσα διαδικασία.}. Αυτό το αρχείο περιέχει πολλές γραμμές που περιέχουν
+πληροφορίες σχετικά με τις χορηγούμενες δυνατότητες. \\
 
+\texttt{\textlatin{(cont)\# grep Cap /proc/self/status}}
+
+\texttt{\textlatin{CapInh: 00000000a80425fb}}
+
+\texttt{\textlatin{CapPrm: 00000000a80425fb}}
+
+\texttt{\textlatin{CapEff: 00000000a80425fb}}
+
+\texttt{\textlatin{CapBnd: 00000000a80425fb}}
+
+\texttt{\textlatin{CapAmb: 0000000000000000}} \\
+
+Βλέπουμε πέντε διαφορετικές τιμές που περιγράφουν τις δυνατότητες της
+διαδικασίας:
+
+• \textlatin{\textbf{CapInh}}: Οι κληρονομικές δυνατότητες είναι οι δυνατότητες που
+μπορεί να πάρει μία \textlatin{child} διαδικασία.
+
+• \textlatin{\textbf{CapPrm}}: Οι επιτρεπόμενες δυνατότητες είναι οι μέγιστες
+δυνατότητες που μια διαδικασία μπορεί να χρησιμοποιήσει.
+
+• \textlatin{\textbf{CapEff}}: Οι δυνατότητες που έχει η διαδικασία.
+
+• \textlatin{\textbf{CapBnd}}: Οι δυνατότητες που επιτρέπονται στο δέντρο
+κλήσεων.
+
+• \textlatin{\textbf{CapAmb}}: Δυνατότητες που μπορούν να κληρονομήσουν οι
+\textlatin{non-root} διαδικασίες μπορούν να κληρονομήσουν.
+
+
+Μας ενδιαφέρει η τιμή \texttt{\textlatin{CapEff}}, γιατί αυτή η τιμή
+αντιπροσωπεύει τις τρέχουσες δυνατότητες. Οι δυνατότητες αντιπροσωπεύονται ως
+δεκαεξαδική τιμή. Κάθε δυνατότητα έχει μια τιμή και η τιμή
+\texttt{\textlatin{CapEff}} είναι ο συνδυασμός
+των τιμών των χορηγηθεισών δυνατοτήτων. Μπορούμε να χρησιμοποιήσουμε το εργαλείο
+\textlatin{capsh} για να λάβουμε την λίστα δυνατοτήτων από μια δεκαεξαδική τιμή
+(αυτό μπορεί να εκτελεστεί σε διαφορετικό σύστημα). \\
+
+\texttt{\textlatin{(host)\$ capsh --decode=00000000a80425fb}}
+
+\texttt{\textlatin{0x00000000a80425fb=cap\_chown,cap\_dac\_override,cap\_fowner,}}
+
+\texttt{\textlatin{cap\_fsetid,cap\_kill,cap\_setgid,cap\_setuid,cap\_setpcap,}}
+
+\texttt{\textlatin{cap\_net\_bind\_service,cap\_net\_raw,cap\_sys\_chroot,}}
+
+\texttt{\textlatin{cap\_mknod,cap\_audit\_write,cap\_setfcap}} \\
+
+
+Μπορούμε να το χρησιμοποιήσουμε για να ελέγξουμε αν υπάρχουν δυνατότητες που
+μπορούν να χρησιμοποιηθούν για να διαφύγουμε από το κοντέινερ \textlatin{Docker}
+(βλ. ενότητα 4.1.4).
+
+
+\subsubsection{Έλεγχος για προνομιακή Λειτουργία (\textlatin{Privileged Mode})}
+
+Όπως αναφέρθηκε προηγουμένως, εάν το κοντέινερ λειτουργεί σε προνομιακή
+λειτουργία, έχει όλες τις δυνατότητες. Αυτό καθιστά εύκολο να ελέγξουμε αν
+εκτελούμε μια διαδικασία σε ένα κοντέινερ με προνομιακή λειτουργία.
+Το 0000003ffffffffff είναι η αναπαράσταση όλων των δυνατοτήτων. \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm --privileged ubuntu:latest grep CapEff /proc/1/status}}
+
+\texttt{\textlatin{CapEff: 0000003fffffffff}}
+
+\texttt{\textlatin{(host)\$ capsh --decode=0000003fffffffff}}
+
+\texttt{\textlatin{0x0000003fffffffff=cap\_chown,cap\_dac\_override,}}
+
+\texttt{\textlatin{cap\_dac\_read\_search,cap\_fowner,cap\_fsetid,cap\_kill,}}
+
+\texttt{\textlatin{cap\_setgid,cap\_setuid,cap\_setpcap,cap\_linux\_immutable,}}
+
+\texttt{\textlatin{cap\_net\_bind\_service,cap\_net\_broadcast,cap\_net\_admin,}}
+
+\texttt{\textlatin{cap\_net\_raw,cap\_ipc\_lock,cap\_ipc\_owner,cap\_sys\_module,}}
+
+\texttt{\textlatin{cap\_sys\_rawio,cap\_sys\_chroot,cap\_sys\_ptrace,cap\_sys\_pacct,}}
+
+\texttt{\textlatin{cap\_sys\_admin,cap\_sys\_boot,cap\_sys\_nice,cap\_sys\_resource,}}
+
+\texttt{\textlatin{cap\_sys\_time,cap\_sys\_tty\_config,cap\_mknod,cap\_lease,}}
+
+\texttt{\textlatin{cap\_audit\_write,cap\_audit\_control,cap\_setfcap,}}
+
+\texttt{\textlatin{cap\_mac\_override,cap\_mac\_admin,cap\_syslog,cap\_wake\_alarm,}}
+
+\texttt{\textlatin{cap\_block\_suspend,cap\_audit\_read}} \\
+
+Αν βρούμε ένα προνομιακό κοντέινερ, μπορούμε εύκολα να το ξεφύγουμε (όπως
+φαίνεται στο ενότητα 4.1.3).
+
+\subsubsection{Έλεγχος \textlatin{Volumes}}
+
+\textlatin{Volumnes}, δηλαδή οι κατάλογοι που είναι προσαρτημένοι από τον
+κεντρικό υπολογιστή στο κοντέινερ, είναι τα μόνιμα δεδομένα του κοντέινερ. Αυτά
+τα μόνιμα δεδομένα ενδέχεται να περιέχουν ευαίσθητες πληροφορίες, γι' αυτό είναι
+σημαντικό να ελέγξουμε ποιοί καταλόγοι τοποθετούνται στο κοντέινερ (βλ.
+ενότητα 2.2.3).
 
 \subsection{Αναγνώριση Ευπαθειών}
 \subsection{Εργαλεία}
