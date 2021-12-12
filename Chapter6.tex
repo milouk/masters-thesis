@@ -408,11 +408,155 @@
 
 \subsubsection{Έλεγχος \textlatin{Volumes}}
 
-\textlatin{Volumnes}, δηλαδή οι κατάλογοι που είναι προσαρτημένοι από τον
+\textlatin{Volumes}, δηλαδή οι κατάλογοι που είναι προσαρτημένοι από τον
 κεντρικό υπολογιστή στο κοντέινερ, είναι τα μόνιμα δεδομένα του κοντέινερ. Αυτά
 τα μόνιμα δεδομένα ενδέχεται να περιέχουν ευαίσθητες πληροφορίες, γι' αυτό είναι
 σημαντικό να ελέγξουμε ποιοί καταλόγοι τοποθετούνται στο κοντέινερ (βλ.
 ενότητα 2.2.3).
+
+Μπορούμε να το κάνουμε αυτό κοιτάζοντας τις προσαρτημένες θέσεις του συστήματος
+αρχείων. \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /tmp:/host/tmp ubuntu cat /proc/mounts}}
+
+\texttt{\textlatin{overlay / overlay...}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{/dev/mapper/ubuntu--vg-root /host/tmp...}}
+
+\texttt{\textlatin{/dev/mapper/ubuntu--vg-root /etc/resolv.conf...}}
+
+\texttt{\textlatin{/dev/mapper/ubuntu--vg-root /etc/hostname ext4...}}
+
+\texttt{\textlatin{/dev/mapper/ubuntu--vg-root /etc/hosts...}}
+
+\texttt{\textlatin{...}}
+
+
+
+Κάθε γραμμή περιέχει πληροφορίες για μία προσάρτηση. Βλέπουμε πολλές γραμμές.
+Βλέπουμε τη \textlatin{root} προσάρτηση \textlatin{OverlayFS} στην κορυφή και σε
+ποια διαδρομή δείχνει στον κεντρικό υπολογιστή. Βλέπουμε επίσης ποιοι κατάλογοι
+είναι προσαρτημένοι από το \textlatin{root file system} στον κεντρικό υπολογιστή
+(που σε αυτήν την περίπτωση είναι το \textlatin{LVM logical volume root} που
+αναπαρίσταται στο σύστημα αρχείων ως
+\texttt{\textlatin{/dev/mapper/ubuntu--vg-root}}). Στην εντολή μπορούμε να δούμε
+ότι το \texttt{\textlatin{/tmp}} του κεντρικού υπολογιστή προσαρτάται ως
+\texttt{\textlatin{/host/tmp}} στο κοντέινερ και στο
+\texttt{\textlatin{/proc/mounts}} βλέπουμε ότι το \texttt{\textlatin{/host/tmp}}
+έχει προσαρτηθεί. Δυστυχώς δεν βλέπουμε σε ποιο μονοπάτι ο κεντρικός υπολογιστής
+είναι προσαρτηθεί, βλέπουμε μόνο τη διαδρομή μέσα στο κοντέινερ.
+
+Τώρα γνωρίζουμε ότι αυτό είναι ένα ενδιαφέρον μονοπάτι, γιατί το περιεχόμενό του
+πρέπει να είναι \textlatin{persistent}. Κατά τη διάρκεια μιας δοκιμής
+διείσδυσης, αυτός θα ήταν ένας κατάλογος για που αξίζει να δώσουμε επιπλέον
+προσοχή.
+
+
+\subsubsection{Έλεγχος για ένα προσαρτημένο \textlatin{Docker Socket}}
+
+
+Είναι αρκετά σύνηθες το \textlatin{Docker Socket} να προσαρτάται σε κοντέινερ.
+Για παράδειγμα, αν θέλουμε να έχουμε ένα δοχείο που να παρακολουθεί την υγεία
+όλων των άλλων κοντέινερς. Ωστόσο, αυτό είναι επικίνδυνο (όπως αναλύεται στην
+ενότητα 4.1.5). Μπορούμε να αναζητήσουμε το \textlatin{socket} χρησιμοποιώντας
+δύο τεχνικές. Είτε κοιτάμε το προσαρτήσεις ή προσπαθούμε να αναζητήσουμε αρχεία
+με παρόμοια ονόματα με το \texttt{\textlatin{docker.sock}}. \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /var/run/docker.sock:/var/run/}}
+
+\texttt{\textlatin{docker.sock ubuntu grep docker.sock /proc/mounts}}
+
+\texttt{\textlatin{tmpfs /run/docker.sock tmpfs rw,nosuid,noexec,relatime,size=792244k,mode=755 0 0}} \\
+
+Εδώ βλέπουμε ότι αν προσαρτήσουμε το \texttt{\textlatin{/var/run/docker.sock}}
+στο κοντέινερ ως \texttt{\textlatin{/var/run/docker.sock}} και δούμε το
+\texttt{\textlatin{/proc/mounts}}. Μπορούμε να δούμε ότι το το
+\texttt{\textlatin{docker.sock}} είναι προσαρτημένο στο
+\texttt{\textlatin{/run/docker.sock}} (δεν είναι στην πραγματικότητα
+προσαρτημένο στο \texttt{\textlatin{/var/run/docker.sock}} γιατί το
+\texttt{\textlatin{/var/run/}} είναι ένας συμβολικός σύνδεσμος στο
+\texttt{\textlatin{/run/}}). \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm -v /var/run/docker.sock:/var/run/}}
+
+\texttt{\textlatin{docker.sock ubuntu find . -name "docker.sock" /}} \\
+
+Εδώ προσαρτούμε το \texttt{\textlatin{/var/run/docker.sock}} στο κοντέινερ και
+ψάχνουμε αρχεία που ονομάζονται "\texttt{\textlatin{docker.sock}}".
+
+\subsubsection{Έλεγχος ρυθμίσεων δικτύου}
+
+Θα πρέπει επίσης να δούμε το δίκτυο του κοντέινερ. Θα πρέπει να κοιτάξουμε
+ποια κοντέινερ βρίσκονται στο ίδιο δίκτυο και τι είναι ικανό το κοντέινερ
+να φτάσει από πλευράς δικτύου. Για να γίνει αυτό, πιθανότατα θα χρειαστεί να
+εγκαταστήσουμε κάποια εργαλεία. Ακόμη και τα πιο βασικά εργαλεία δικτύωσης
+(π.χ. \texttt{\textlatin{ping}}) αφαιρούνται από τα περισσότερα
+\textlatin{Docker images}, γιατί λίγα κοντέινερ θα τα χρειαστούν.
+
+
+Από προεπιλογή, όλα τα κοντέινερ λαμβάνουν μια διεύθυνση \textlatin{IPv4} στο
+υποδίκτυο 172.17.0.0/16. Είναι δυνατό να βρούμε τη διεύθυνση (χωρίς να
+εγκαταστήσ τίποτα) ενός κοντέινερ που έχουμε πρόσβαση κοιτάζοντας το αρχείο
+\texttt{\textlatin{/etc/hosts/}}. Το \textlatin{Docker} θα προσθέσει μια γραμμή
+που κάνει \textlatin{resolve} το όνομα του κεντρικού υπολογιστή στη διεύθυνση
+\textlatin{IPv4} σε \texttt{\textlatin{/etc/hosts}}. \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm alpine tail -n1 /etc/hosts}}
+
+\texttt{\textlatin{172.17.0.2 e0e6b96367db}} \\
+
+Μπορούμε να δούμε το δίκτυο \textlatin{Docker} χρησιμοποιώντας το
+\texttt{\textlatin{nmap}} (το οποίο θα πρέπει να εγκαταστήσουμε μόνοι μας). \\
+
+\texttt{\textlatin{(host)\$ docker run -it --rm ubuntu bash}}
+
+\texttt{\textlatin{(cont)\# apt update}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# apt install nmap}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{(cont)\# nmap -sn -PE 172.17.0.0/16}}
+
+\texttt{\textlatin{...}}
+
+\texttt{\textlatin{Nmap scan report for 172.17.0.1}}
+
+\texttt{\textlatin{Host is up (0.000044s latency).}}
+
+\texttt{\textlatin{MAC Address: 02:42:5F:92:ED:72 (Unknown)}}
+
+\texttt{\textlatin{Nmap scan report for 172.17.0.3}}
+ 
+\texttt{\textlatin{Host is up (0.000027s latency).}}
+
+\texttt{\textlatin{MAC Address: 02:42:AC:11:00:03 (Unknown)}} \\
+
+Βλέπουμε ότι μπορούμε να φτάσουμε σε δύο κοντέινερ, 172.17.0.1 και 172.17.0.2.
+Ο πρώτος είναι ο ίδιος ο κεντρικός υπολογιστής και ο δεύτερος ένα άλλο
+\textlatin{docker}. Είναι δυνατό να καταγραφεί η κίνηση αυτού του κοντέινερ
+χρησιμοποιώντας μια επίθεση \textlatin{ARP man-in-the-middle} (βλ.
+ενότητα 4.1.7).
+
+\subsection{Δοκιμές διείσδυσης σε ένα κεντρικό υπολογιστή που τρέχει
+\textlatin{Docker}}
+
+Κατά τη δοκιμή ενός κεντρικού υπολογιστή με εγκατεστημένο το \textlatin{Docker}
+σε αυτό, μας ενδιαφέρει να βρούμε σφάλματα και εσφαλμένες διαμορφώσεις που μας
+επιτρέπουν να χρησιμοποιούμε το \textlatin{Docker} για πρόσβαση σε ευαίσθητα
+δεδομένα ή να κλιμακώσουμε τα προνόμιά μας εντός του συστήματος. Σε αυτή την
+ενότητα θα εξετάσουμε τα διάφορα βήματα που μπορούμε να κάνουμε για να
+συγκεντρώσουμε πληροφορίες σχετικά με το σύστημα και τη διαμόρφωση του
+\textlatin{Docker}. Αυτό θα μας πει αν είναι δυνατό να εκτελέσουμε
+ένα \textlatin{Docker daemon} (βλ. ενότητα 3.2).
+
+\subsubsection{Έκδοση \textlatin{Docker}}
+
+
 
 \subsection{Αναγνώριση Ευπαθειών}
 \subsection{Εργαλεία}
