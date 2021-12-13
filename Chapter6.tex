@@ -556,7 +556,88 @@
 
 \subsubsection{Έκδοση \textlatin{Docker}}
 
+Το πρώτο βήμα που κάνουμε εάν δοκιμάζουμε ένα σύστημα που έχει εγκαταστεστημένο
+το \textlatin{Docker}, είναι να ελέγξουμε την έκδοση. Το \textlatin{Docker} δεν
+χρειάζεται να τρέχει και εμείς δεν χρειαζόμαστε ειδικές άδειες (δηλαδή άδειες
+\textlatin{Docker}) για να ελέγξουμε τη έκδοση του \textlatin{Docker}
+\footnote{Η έκδοση είναι \textlatin{hardcoded} ως συμβολοσειρά μέσα στο
+\textlatin{Docker client binary}}. \\
 
+\texttt{\textlatin{(host)\$ docker -v}}
+
+\texttt{\textlatin{Docker version 20.10.8, build 3967b7d}} \\
+
+Μόλις βρούμε την έκδοση Docker, θα πρέπει να ελέγξουμε για τυχόν \textlatin{CVE}
+που είναι διαθέσιμα για την έκδοση του \textlatin{Docker} που είναι
+εγκατεστημένο στον κεντρικό υπολογιστή.
+
+\subsubsection{Ποιός επιτρέπεται να χρησιμοποιήσει το \textlatin{Docker}}
+
+Επειδή η πρόσβαση στο \textlatin{Docker} ισοδυναμεί με δικαιώματα
+\texttt{\textlatin{root}}, οι χρήστες που επιτρέπεται να χρησιμοποιούν το
+\textlatin{Docker} είναι ενδιαφέροντες στόχοι. Αν υπάρχει ένας τρόπος να γίνουμε
+ένας από αυτούς τους χρήστες, θα έχουμε πρόσβαση τα πάντα στον κεντρικό
+υπολογιστή.
+
+Όπως συζητήθηκε στην ενότητα 2.2.5, κάθε χρήστης έχει πρόσβαση ανάγνωσης και
+εγγραφής στο \textlatin{Docker socket} (δηλαδή το
+\texttt{\textlatin{/var/run/docker.sock}}) έχει δικαιώματα χρήσης του
+\textlatin{Docker}.
+
+Γι' αυτό το πρώτο πράγμα που πρέπει να κάνουμε είναι να δούμε ποιοι χρήστες
+έχουν δικαιώματα ανάγνωσης και εγγραφής στο \textlatin{Docker socket}. Αυτό
+φαίνεται παρακάτω.
+
+Από προεπιλογή, το \texttt{\textlatin{root}} και κάθε χρήστης στην ομάδα
+\texttt{\textlatin{docker}} έχει δικαιώματα ανάγνωσης και εγγραφής δικαιώματα
+στο \textlatin{Docker socket}.
+
+Μπορούμε να δούμε ποιος είναι στην ομάδα \texttt{\textlatin{docker}} κοιτάζοντας
+στο \textlatin{/etc/group}. \\
+
+\texttt{\textlatin{\$ grep docker /etc/group}}
+
+\texttt{\textlatin{docker:x:999:milouk}} \\
+
+Βλέπουμε ότι μόνο ο \texttt{\textlatin{milouk}} είναι μέρος της ομάδας
+\texttt{\textlatin{docker}}. Μπορεί επίσης να έχει ενδιαφέρον να δούμε ποιοι
+χρήστες έχουν δικαιώματα \texttt{\textlatin{sudo}} (στο
+\texttt{\textlatin{/etc/sudoers}}). Χρήστες χωρίς \texttt{\textlatin{sudo}} αλλά
+με δικαιώματα \textlatin{Docker} πρέπει να ληφθούν υπόψη ως χρήστες
+\texttt{\textlatin{sudo}} (βλ. ενότητα 4.1.1).
+
+Είναι επίσης πιθανό το \texttt{\textlatin{setuid bit}} να έχει οριστεί στο
+\textlatin{Docker client}. Σε αυτή τη περίπτωση, μπορούμε επίσης να
+χρησιμοποιήσουμε το \textlatin{Docker}. \\
+
+\texttt{\textlatin{(host)\$ ls -l \$(which docker)}}
+
+\texttt{\textlatin{-rwxr-xr-x 1 root root 88965248 dec 13 08:28 /usr/bin/docker}}
+
+\texttt{\textlatin{(host)\# chmod +s \$(which docker)}}
+
+\texttt{\textlatin{(host)\$ ls -l \$(which docker)}}
+
+\texttt{\textlatin{-rwsr-sr-x 1 root root 88965248 dec 13 08:28 /usr/bin/docker}} \\
+
+\subsubsection{Ρυθμίσεις (\textlatin{Configuration})}
+
+Το \textlatin{Docker} για να ρυθμιστεί χρησιμοποιεί πολλά αρχεία. Το πιο
+σημαντικό είναι ο τρόπος με τον οποοίον ο \textlatin{Docker daemon} ξεκινά. Τα
+περισσότερα συστήματα θα έχουν κάποιο \textlatin{service manager} που
+διαχειρίζεται \textlatin{daemon processes}. Σε πολλές σύγχρονες διανομές
+\textlatin{Linux} αυτό είναι έργο του \texttt{\textlatin{systemd}}. Σε άλλα
+συστήματα \textlatin{Linux} το αρχείο διαμόρφωσης
+\texttt{\textlatin{/etc/docker/daemon.json}}
+\footnote{\textlatin{https://docs.docker.com/engine/reference/commandline/dockerd/}}
+χρησιμοποιείται (και οι προεπιλογές ενδέχεται να οριστούν στο
+\texttt{\textlatin{/etc/default/docker}}). Αυτά τα αρχεία θα μας πουν επίσης εάν
+το \textlatin{Docker API} είναι διαθέσιμο μέσω \textlatin{TCP} το οποίο, εάν δεν
+ρυθμιστεί σωστά, μπορεί να είναι επικίνδυνο.
+
+Μπορούμε επίσης να αναζητήσουμε αρχεία ρυθμίσεων χρήστη, που μπορεί να περιέχουν
+μυστικά και ευαίσθητα δεδομένα. Δείτε την ενότητα 4.1.2 για περισσότερες
+πληροφορίες.
 
 \subsection{Αναγνώριση Ευπαθειών}
 \subsection{Εργαλεία}
