@@ -639,6 +639,148 @@
 μυστικά και ευαίσθητα δεδομένα. Δείτε την ενότητα 4.1.2 για περισσότερες
 πληροφορίες.
 
+\subsubsection{Διαθέσιμες εικόνες και κοντέινερς}
+
+Πρέπει να ελέγξουμε ποιες εικόνες και κοντέινερ (τόσο σε λειτουργία όσο και
+σταματημένα) είναι διαθέσιμα στον κεντρικό υπολογιστή. Αυτό θα μας πει
+περισσότερα για το σύστημα που κάνουμε δοκιμές.
+
+Η εντολή \texttt{\textlatin{docker images -a}} θα εμφανίσει όλες τις διαθέσιμες
+εικόνες (συμπεριλαμβανομένων των ενδιάμεσων εικόνων) και το
+\texttt{\textlatin{docker ps -a}} θα εμφανίσουν όλα τα κοντέινερ (σε λειτουργία
+και μη). \\
+
+\texttt{\textlatin{(host)\$ docker images -a}}
+
+\texttt{\textlatin{REPOSITORY \hspace{8em} TAG \hspace{1em} IMAGE ID \hspace{1em} CREATED \hspace{1em} SIZE}}
+
+\texttt{\textlatin{grnet/dilosi\_nginx\_dev \hspace{2em} latest 982db5a3ca83 5 hours ago 141MB}}
+
+\texttt{\textlatin{grnet/dilosi\_backend\_dev \hspace{1em} latest 7eb1820b06e0 5 hours ago 1.46GB}}
+
+\texttt{\textlatin{grnet/dilosi\_frontend\_dev \hspace{0.5em} latest 406ee25a3dfb 5 hours ago 1.6GB}} 
+
+\texttt{\textlatin{(host)\$ docker ps -a --no-trunc --format="\{\{.Names\}\} \{\{.Command\}\} \{\{.Image\}\}"}} 
+
+\texttt{\textlatin{dilosi\_nginx\_dev "/docker-entrypoint.sh nginx -g 'daemon off;'" grnet/dilosi\_nginx\_dev:latest}} \\ 
+
+
+Θα πρέπει επίσης να εξετάσουμε τις μεταβλητές περιβάλλοντος που έχουν περάσει
+στα κοντέινερ, επειδή οι μεταβλητές περιβάλλοντος χρησιμοποιούνται για τη
+διαβίβαση πληροφοριών (συμπεριλαμβανομένων κωδικών πρόσβασης και μυστικών) σε
+ένα κοντέινερ κατά τη δημιουργία του. Χρησιμοποιώντας το
+\texttt{\textlatin{docker inspect}} μπορούμε να δούμε πληροφορίες σχετικά με τα
+κοντέινερ. Συμπεριλαμβανομένων των καθορισμένων μεταβλητών περιβάλλοντος. \\
+
+\texttt{\textlatin{(host)\$ docker run --rm -e MYSQL\_ROOT\_PASSWORD=supersecret --name=database mariadb:latest}}
+
+\texttt{\textlatin{(host)\$ docker inspect database | jq -r '.[0].Config.Env'}}
+
+\texttt{\textlatin{[}}
+
+\texttt{\textlatin{"MYSQL\_ROOT\_PASSWORD=supersecret",}}
+
+\texttt{\textlatin{...}} \\
+
+Τα κοντέινερς μπορεί να έχουν \textlatin{volumes}. Αυτοί οι τόμοι μας λένε
+περισσότερα για όπου μπορεί να βρίσκονται ευαίσθητα και σημαντικά δεδομένα.
+Μπορούμε επίσης να παραθέσουμε τους τόμους χρησιμοποιώντας το
+\texttt{\textlatin{docker inspect}}. \\
+
+\texttt{\textlatin{(host)\$ docker inspect database | jq -r '.[0].HostConfig.Binds'}}
+
+\texttt{\textlatin{[}}
+
+\texttt{\textlatin{"/tmp/database/:/var/lib/mysql/"}}
+
+\texttt{\textlatin{]}} \\
+
+
+\subsubsection{Κανόνες \texttt{\textlatin{iptables}}}
+
+Όπως είδαμε στην ενότητα 4.1.6, το \textlatin{Docker} θα παρακάμψει τους κανόνες
+\texttt{\textlatin{iptables}} του κεντρικού υπολογιστή.
+Χρησιμοποιώντας τις εντολές \texttt{\textlatin{iptables -vnL}} και
+\texttt{\textlatin{iptables -t nat -vnL}}  μπορούμε να δούμε τους κανόνες από
+τους προεπιλεγμένους πίνακες \textlatin{filter} και  \textlatin{nat} αντίστοιχα.
+Είναι σημαντικό ότι όλοι οι κανόνες του τείχους προστασίας σχετικά με τα
+κοντέινερ \textlatin{Docker} ορίζονται στην αλυσίδα \textlatin{DOCKER-USER}
+στο φίλτρο, επειδή όλη η κίνηση του \textlatin{Docker} θα περάσει πρώτα την
+αλυσίδα \textlatin{DOCKER-USER}.
+
+\section{Εργαλεία αυτοματοποίησης}
+
+Οι περισσότερες αξιολογήσεις ασφαλείας είναι χρονικά περιορισμένες. Χρειάζονται
+μεγάλα και πολύπλοκα συστήματα προκειμένου να αξιολογηθεί σε σύντομο χρονικό
+διάστημα. Υπάρχουν εργαλεία που αυτοματοποιούν το μεγαλύτερο κομμάτι της
+διαδικασίας αξιολόγησης. Αντί να κάνουμε κάθε βήμα χειροκίνητα, αυτά τα εργαλεία
+σαρώνουν τα συστήματα αυτόματα και συστηματικά για να βρουν γνωστά τρωτά σημεία
+και πιθανά αδύνατα σημεία. Σε αυτή την ενότητα θα συζητήσουμε τα εργαλεία
+που μας βοηθούν να αυτοματοποιήσουμε μέρος των χειροκίνητων βημάτων της ενότητας
+5.1 για την αναγνώριση και εκμεταλλευση των τρωτών σημείων που συζητήσαμε στο
+κεφάλαιο 4.
+
+Όπως θα δούμε, τα περισσότερα εργαλεία έχουν μια συγκεκριμένη εστίαση (π.χ. μια
+μεμονωμένη ευπάθεια ή μέρος ενός συστήματος). Αυτό καθιστά πιο δύσκολο τον
+διαχωρισμό τους σε ομάδες που αντιστοιχούν στα μοντέλα επίθεσης του κεφαλαίου 3.
+Αντίθετα, τα χωρίζουμε σε ομάδες που ταιριάζουν με το σκοπό τους: σαρωτές
+διαμόρφωσης κεντρικού υπολογιστή (\textlatin{host configuration scanners})
+(ενότητα 5.2.1), εργαλεία ανάλυσης εικόνας \textlatin{Docker} (ενότητα 5.2.2)
+και εργαλεία εκμετάλλευσης (ενότητα 5.2.3).
+
+\subsection{\textlatin{Host configuration Scanners}}
+
+Τα εργαλεία που περιγράφονται σε αυτήν την ενότητα εκτελούνται σε έναν κεντρικό
+υπολογιστή που εκτελεί το \textlatin{Docker} (βλ ενότητα 5.1.3). Ελέγχουν για
+προβλήματα στη διαμόρφωση του \textlatin{Docker}, στις διαθέσιμες εικόνες και
+στα διαθέσιμα κοντέινερ.
+
+\subsubsection{\textlatin{Docker Bench for Security}}
+
+Το ίδιο το \textlatin{Docker} έχει κυκλοφορήσει έναν σαρωτή (που ονομάζεται
+\textlatin{Docker Bench for Security}
+\footnote{\textlatin{https://github.com/docker/docker-bench-security}}) που
+βασίζεται στο \textlatin{CIS Docker Benchmark}. Προορίζεται για να εκτελείται σε
+έναν κεντρικό υπολογιστή που τρέχει \textlatin{Docker}. Ο σαρωτής ελέγχει εάν η
+διαμόρφωση \textlatin{Docker}, οι εικόνες και τα κοντέινερς στον κεντρικό
+υπολογιστή ακολουθούν όλες τις οδηγίες του \textlatin{CIS Docker Benchmark}.
+Ορισμένες οδηγίες μπορεί να είναι άσχετες με κάθε κεντρικό υπολογιστή (π.χ.
+οδηγίες που σχετίζονται με το \textlatin{Docker Swarm}). Αυτές παραλείπονται από
+το \textlatin{Docker Bench for Security}.
+
+\subsubsection{\textlatin{Dockscan}}
+
+Το \textlatin{Dockscan} \footnote{\textlatin{https://github.com/kost/dockscan}}
+ελέγχει έναν κεντρικό υπολογιστή και τα κοντέινερ που τρέχουν για εσφαλμένες
+διαμορφώσεις (δεν σχετίζεται κάθε εσφαλμένη ρύθμιση παραμέτρων με την ασφάλεια).
+Είναι αρκετά παλιό (η τελευταίο αλλαγή γίνεται τον Αύγουστο του 2016
+\footnote{\textlatin{https://github.com/kost/dockscan/commit/0a21d64}}) και ως
+εκ τούτου λιγότερο χρήσιμο κατά τη διάρκεια μιας διείσδυσης. δοκιμή. Το
+\textlatin{Dockscan} σαρώνει για τις ακόλουθες εσφαλμένες διαμορφώσεις:
+
+• Ο αριθμός των αλλαγμένων αλλά όχι μόνιμων αρχείων των κοντέινερ που τρέχουν.
+
+• Κενοί κωδικοί πρόσβασης σε κοντέινερ (παρόμοια με την ενότητα 4.2.4).
+
+• Ο αριθμός των διεργασιών που εκτελούνται μέσα σε ένα κοντέινερ.
+
+• Εάν ένας διακομιστής \textlatin{SSH} εκτελείται μέσα σε ένα κοντέινερ.
+
+• Εάν έχει εγκατασταθεί μια μη σταθερή έκδοση του \textlatin{Docker}.
+
+• Η χρήση μη ασφαλών \textlatin{registries}.
+
+• Εάν έχουν τεθεί όρια μνήμης για κοντέινερ.
+
+• Εάν η προώθηση κίνησης \textlatin{IPv4} είναι ενεργοποιημένη στο
+\textlatin{Docker}.
+
+• Εάν χρησιμοποιείται κάποιο \textlatin{mirror registry}.
+
+• Εάν χρησιμοποιείται το \textlatin{AUFS storage driver}.
+
+\subsection{Εργαλεία ανάλυσης εικόνων \textlatin{Docker}}
+
 \subsection{Αναγνώριση Ευπαθειών}
 \subsection{Εργαλεία}
 \subsection{Εύρεση \textlatin{host} / Ευπάθειες \textlatin{Container}}
