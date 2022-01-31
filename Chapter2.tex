@@ -618,15 +618,32 @@
 
 \texttt{\textlatin{services:}}
 
-\texttt{\textlatin{postgres:}}
+\texttt{\textlatin{ \hspace{0.1em} samba:}}
 
-\texttt{\textlatin{image: "postgres:latest"}}
+\texttt{\textlatin{ \hspace{0.9em} container\_name: docker\_smb}}
 
-\texttt{\textlatin{restart: "always"}}
+\texttt{\textlatin{ \hspace{0.9em} tty: true}}
 
-\texttt{\textlatin{environment:}}
+\texttt{\textlatin{ \hspace{0.9em} hostname: Docker}}
 
-\texttt{\textlatin{cat: /tmp/test: No such file or directory}} \\
+\texttt{\textlatin{ \hspace{0.9em} build:}}
+
+\texttt{\textlatin{ \hspace{1.7em} context: .}}
+
+\texttt{\textlatin{ \hspace{1.7em} shm\_size: '100mb'}}
+
+\texttt{\textlatin{ \hspace{1.7em} dockerfile: Dockerfile}}
+
+\texttt{\textlatin{ \hspace{0.9em} volumes:}}
+
+\texttt{\textlatin{ \hspace{1.7em} - "\$\{SHARE\_PATH\}:/mnt/ps2smb"}}
+
+\texttt{\textlatin{ \hspace{0.9em} ports:}}
+
+\texttt{\textlatin{ \hspace{1.7em} - "445:445/tcp"}} \\
+
+
+
 
 Παρόμοια λειτουργικότητα είναι επίσης ενσωματωμένη στο
 \textlatin{Docker Engine}, που ονομάζεται \textlatin{Docker Stack}.
